@@ -6,7 +6,7 @@ Fragility Passport is an intelligent CCTV system that monitors how products are 
 
 Unlike generic object detection, Fragility Passport understands the *context* of a product. It connects raw computer vision data to a product-specific handling contract, evaluates the risk, alerts supervisors, and automatically compiles evidence into detailed reports to prevent downstream supply chain damage.
 
-## 📖 The Core Concept: The "Fragility Passport"
+## The Core Concept: The "Fragility Passport"
 
 Instead of applying uniform rules to an entire warehouse, each product has a "handling contract" or "passport".
 
@@ -18,7 +18,7 @@ For example, a delicate **KD Panel (SKU: ABC-123)** might have a passport that s
 
 When the AI detects a "Throwing" behavior, the backend cross-references the product's Fragility Passport. If throwing is not allowed, it registers a **High-Risk Contract Violation**, instantly alerting warehouse supervisors.
 
-## 🚀 Key Features
+## Key Features
 
 - **Product-Specific Rule Checking:** Dynamically checks handling behaviors against predefined fragility rules.
 - **Risk Engine:** Calculates risk scores based on behavior severity, AI confidence, and passport violations.
@@ -28,7 +28,7 @@ When the AI detects a "Throwing" behavior, the backend cross-references the prod
 - **Automated Incident Reports:** Generates evidence-backed reports with incident metadata, frames, and AI reasoning.
 - **VLM & AI Assistant Integration:** Allows supervisors to naturally query warehouse incident data (e.g., *"Which dock had the most high-risk events today?"*).
 
-## 🏗️ Architecture
+## Architecture
 
 The system is divided into five major layers:
 
@@ -43,14 +43,14 @@ The system is divided into five major layers:
 Video → Object Detection → Behavior AI → Passport Lookup → Risk Engine → Database Storage → Alert & Dashboard → Report
 ```
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 - **Backend:** Python, FastAPI, SQLAlchemy, SQLite/PostgreSQL
 - **Machine Learning:** YOLO (Fine-tuned), ByteTrack, OpenCV, custom VLM integration
 - **Frontend:** React (Dashboard, Video Player, Analytics Charts)
 - **Deployment:** Docker, Docker Compose, GitHub Actions
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 ├── backend/            # FastAPI app, APIs, Services, Database Models, Risk Engine
@@ -63,7 +63,7 @@ Video → Object Detection → Behavior AI → Passport Lookup → Risk Engine �
 └── scripts/            # Setup and database seeding scripts
 ```
 
-## ⚙️ Getting Started
+## Getting Started
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -94,7 +94,7 @@ Video → Object Detection → Behavior AI → Passport Lookup → Risk Engine �
 
 *(Alternatively, use `docker-compose up -d` to spin up the entire stack).*
 
-## 📡 API Overview
+## API Overview
 
 The backend serves as the core integration layer, exposing routes like:
 - `POST /events` - Ingests ML detections and triggers the Risk Engine.
@@ -104,7 +104,7 @@ The backend serves as the core integration layer, exposing routes like:
 - `POST /alerts/{id}/acknowledge` - Supervisor acknowledges an active alert.
 - `GET /reports/{event_id}` - Generates an evidence-backed incident report.
 
-## 🤝 Workstreams
+## Workstreams
 
 This project is built collaboratively across specialized domains:
 1. **Data Science / ML:** Custom CV training, object tracking, and behavior detection.
@@ -112,6 +112,6 @@ This project is built collaboratively across specialized domains:
 3. **Frontend:** Real-time dashboards, charts, and video monitoring UI.
 4. **Backend & Data Pipeline:** The central integration layer (FastAPI), managing databases, risk logic, and APIs.
 
-## 🔒 Privacy & Compliance
+## Privacy & Compliance
 
 Fragility Passport focuses on identifying **process problems**, not individuals. Tracking IDs are anonymized, and incidents are aggregated by dock, shift, and behavior to provide systemic insights without compromising worker privacy.
