@@ -1,0 +1,38 @@
+{
+  "INTERIO-CUPBOARD-001": {
+    "product_name": "Interio Wooden Cupboard",
+    "max_tilt_degrees": 40,
+    "max_drop_height_cm": 15,
+    "required_orientation": "upright",
+    "max_stack_weight_kg": 0,
+    "drag_allowed": false,
+    "notes": "Vertical product - must not be laid horizontally per Godrej taxonomy"
+  },
+  "INTERIO-MATTRESS-001": {
+    "product_name": "Interio Mattress",
+    "max_tilt_degrees": 90,
+    "max_drop_height_cm": 30,
+    "required_orientation": "any",
+    "max_stack_weight_kg": 0,
+    "drag_allowed": false,
+    "notes": "Should be carried flat, not rolled/thrown per Godrej taxonomy"
+  },
+  "KD-PANEL-001": {
+    "product_name": "Knock-Down Furniture Panel",
+    "max_tilt_degrees": 25,
+    "max_drop_height_cm": 10,
+    "required_orientation": "flat",
+    "max_stack_weight_kg": 20,
+    "drag_allowed": false,
+    "notes": "Fragile edges - no heavy items stacked on top, no dragging"
+  },
+  "SEATING-CARTON-001": {
+    "product_name": "Seating Furniture Carton",
+    "max_tilt_degrees": 30,
+    "max_drop_height_cm": 20,
+    "required_orientation": "upright",
+    "max_stack_weight_kg": 15,
+    "drag_allowed": false,
+    "notes": "Must be lifted at marked points, not by packaging straps"
+  }
+}
