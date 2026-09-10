@@ -18,6 +18,7 @@ from app.api import (
     events,
     health,
     passports,
+    pipeline,
     products,
     reports,
     videos,
@@ -77,6 +78,7 @@ app.include_router(dashboard.router)
 app.include_router(assistant.router)
 app.include_router(reports.router)
 app.include_router(accelerometer.router)  # Workstream 5: live drop-test phone telemetry
+app.include_router(pipeline.router)  # Workstream 5: video upload -> ML pipeline
 
 # Serve frontend/public/ (accelerometer.html for the live drop-test demo) so
 # a phone can load it same-origin as the /api/accelerometer endpoint.

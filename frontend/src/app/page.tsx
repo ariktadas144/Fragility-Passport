@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import UploadClip from "@/components/UploadClip";
 import { AlertTriangle, PackageOpen, Settings, CheckCircle2, TrendingUp, Activity } from "lucide-react";
 import {
   api,
@@ -43,6 +44,8 @@ export default function Dashboard() {
         <h1 className="text-3xl font-serif font-bold text-foreground tracking-tight">Intelligence Dashboard</h1>
         <p className="text-zinc-400">Real-time overview of warehouse operations and handling risks.</p>
       </div>
+
+      <UploadClip />
 
       {error && (
         <Card>
