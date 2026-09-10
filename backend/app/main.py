@@ -23,7 +23,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import health, videos, events, passports, assistant
+from app.api import health, videos, events, passports, assistant, accelerometer
 
 BASE_DIR = Path(__file__).parent.parent.parent
 
@@ -45,3 +45,4 @@ app.include_router(videos.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(passports.router, prefix="/api")
 app.include_router(assistant.router, prefix="/api")
+app.include_router(accelerometer.router, prefix="/api")
