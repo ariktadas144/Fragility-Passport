@@ -23,8 +23,8 @@ seeded (`python ../scripts/seed_database.py`) or pages render with an
 | `/incidents` | `GET /events` → `GET /events/{id}` | full rows incl. `contract_clause_violated`, `estimated_exposure_inr`, product |
 | `/monitor` | `GET /events` | per-dock incident counts + highest-risk event; no video streaming in this build |
 | `/passports` | `GET /products` → `GET /passports/{id}` | handling contracts; client-side SKU/name search |
+| `/analytics` | `GET /dashboard/summary` | bar = incidents per dock, donut = incidents per risk level; both reshaped client-side from the one summary payload |
 | ChatWidget | `POST /assistant/query` | grounded Q&A; renders the answer + its `source` (`local` / `llm` / `unavailable`) |
-| `/analytics` | — | **still mock data** (recharts demo) |
 
 All API access goes through [`src/lib/api.ts`](src/lib/api.ts).
 `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`) is the only config.
