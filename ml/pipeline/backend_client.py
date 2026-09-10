@@ -76,6 +76,17 @@ def _overlap_duration_seconds(fused_event: dict) -> float | None:
     return round(max(0.0, end - start), 3)
 
 
+def _clean_clip_ref(ref: str | None) -> str | None:
+    """Basename only, control chars stripped -- source_clip_ref becomes a
+    Video.filename row and is echoed back in API responses, so keep any path
+    components or newlines out of it."""
+    if not ref:
+        return ref
+    base = os.path.basename(str(ref).replace("\\", "/")).strip()
+    base = "".join(c for c in base if c.isprintable())
+    return base or None
+
+
 def fused_event_to_detection(
     fused_event: dict,
     *,
@@ -109,7 +120,7 @@ def fused_event_to_detection(
     detection = {
         "event_id": event_id,
         "video_id": video_id,
-        "source_clip_ref": source_clip_ref,
+        "source_clip_ref": _clean_clip_ref(source_clip_ref),
         "dock": dock,
         "product_sku": product_sku,
         "start_time": round(float(fused_event["start_time"]), 3),

@@ -39,6 +39,34 @@ from ml.vlm.gemini_analysis import analyze_video
 
 logger = logging.getLogger(__name__)
 
+_VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+_MAX_VIDEO_BYTES = 500 * 1024 * 1024  # generous; a real warehouse clip is tens of MB
+
+
+class InvalidVideoError(ValueError):
+    """The input isn't a usable video file (missing, empty, wrong type, too big)."""
+
+
+def _validate_video_file(video_path: str) -> Path:
+    """Reject anything that isn't a plausible video before we spend minutes on
+    it. Returns the resolved Path."""
+    path = Path(video_path).expanduser()
+    if not path.is_file():
+        raise InvalidVideoError(f"No such file: {video_path}")
+    if path.suffix.lower() not in _VIDEO_SUFFIXES:
+        raise InvalidVideoError(
+            f"{path.name}: unsupported file type '{path.suffix or '(none)'}' "
+            f"(expected one of {', '.join(sorted(_VIDEO_SUFFIXES))})"
+        )
+    size = path.stat().st_size
+    if size == 0:
+        raise InvalidVideoError(f"{path.name}: file is empty")
+    if size > _MAX_VIDEO_BYTES:
+        raise InvalidVideoError(
+            f"{path.name}: {size / 1e6:.0f} MB exceeds the {_MAX_VIDEO_BYTES / 1e6:.0f} MB limit"
+        )
+    return path
+
 
 def _default_output_dir(video_path: str) -> Path:
     return _REPO_ROOT / "data" / "processed" / Path(video_path).stem
@@ -108,7 +136,7 @@ def run_and_submit(
     Returns run_fusion()'s dict plus `submission_results` (per-event, from
     backend_client.submit_fused_events) and `ingested_count`.
     """
-    video_path = str(video_path)
+    video_path = str(_validate_video_file(video_path))
     out_dir = Path(output_dir) if output_dir else _default_output_dir(video_path)
     fusion = run_fusion(video_path, out_dir)
 
@@ -159,8 +187,10 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    if not args.video_file.is_file():
-        parser.error(f"No such file: {args.video_file}")
+    try:
+        _validate_video_file(str(args.video_file))
+    except InvalidVideoError as exc:
+        parser.error(str(exc))
 
     outcome = run_and_submit(
         str(args.video_file),
