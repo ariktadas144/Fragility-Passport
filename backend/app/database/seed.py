@@ -22,7 +22,7 @@ from app.services import event_service
 
 
 def seed_behaviors(db: Session, path: Path) -> int:
-    entries = json.loads(path.read_text())
+    entries = json.loads(path.read_text(encoding="utf-8"))
     created = 0
     for entry in entries:
         if db.query(Behavior).filter(Behavior.code == entry["code"]).first() is not None:
@@ -41,7 +41,7 @@ def seed_behaviors(db: Session, path: Path) -> int:
 
 
 def seed_products(db: Session, path: Path) -> int:
-    entries = json.loads(path.read_text())
+    entries = json.loads(path.read_text(encoding="utf-8"))
     created = 0
     for entry in entries:
         if db.query(Product).filter(Product.sku == entry["sku"]).first() is not None:
@@ -60,7 +60,7 @@ def seed_products(db: Session, path: Path) -> int:
 
 
 def seed_passports(db: Session, path: Path) -> int:
-    entries = json.loads(path.read_text())
+    entries = json.loads(path.read_text(encoding="utf-8"))
     created = 0
     for entry in entries:
         product = db.query(Product).filter(Product.sku == entry["product_sku"]).first()
@@ -86,7 +86,7 @@ def seed_passports(db: Session, path: Path) -> int:
 
 
 def seed_pilot_events(db: Session, path: Path) -> int:
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     created = 0
     for clip in data["clips"]:
         video = db.query(Video).filter(Video.source_clip_ref == clip["filename"]).first()

@@ -54,7 +54,7 @@ def main() -> None:
     parser.add_argument("--fps", type=float, default=None)
     args = parser.parse_args()
 
-    data = json.loads(args.pipeline_output.read_text())
+    data = json.loads(args.pipeline_output.read_text(encoding="utf-8"))
     raw_events = data if isinstance(data, list) else data.get("events", [])
 
     init_db()

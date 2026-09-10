@@ -28,7 +28,7 @@ from app.services import event_service  # noqa: E402
 
 
 def _load_event_dicts(path: Path) -> list[dict]:
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, list):
         return data
     if isinstance(data, dict) and "events" in data:
