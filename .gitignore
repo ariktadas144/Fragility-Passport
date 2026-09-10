@@ -1,1 +1,13 @@
-/node_modules/
+node_modules/
+venv/
+*.pt
+__pycache__/
+*.pyc
+.vscode/
+
+data/raw/
+data/frames/
+data/dataset/images/
+data/overlay_review/
+data/overlay_screen_report.csv
+models/

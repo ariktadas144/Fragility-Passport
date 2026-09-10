@@ -1,0 +1,19 @@
+model:
+  base_weights: yolov8n.pt
+  imgsz: 640
+  conf_threshold: 0.25
+  classes:
+    - carton
+    - pallet
+    - kd_panel
+    - mattress
+
+training:
+  epochs: 25
+  batch: 8
+
+paths:
+  raw_videos: ../../data/raw
+  frames_out: ../../data/frames
+  dataset_dir: ../../data/dataset
+  weights_out: ../../models
