@@ -1,0 +1,14 @@
+{
+  "name": "fragility-passport",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-Powered Warehouse Video Intelligence System — Godrej Enterprises Group @ graVITas'2026",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "frontend": "npm run dev --workspace frontend",
+    "frontend:build": "npm run build --workspace frontend",
+    "backend": "cd backend && uvicorn app.main:app --reload"
+  }
+}
