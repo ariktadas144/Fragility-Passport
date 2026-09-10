@@ -1,22 +1,24 @@
 """
 Video upload + processing endpoint -- the live-upload demo entry point.
-A judge/teammate uploads a clip, this kicks off the full pipeline
-(detection -> tracking -> risk classification) in the background,
-and returns a job_id to poll for results via api/events.py.
+A judge/teammate uploads a clip, this kicks off BOTH pipelines in the
+background (kinematics from tracking, and Gemini whole-video analysis),
+fuses their results, and returns a job_id to poll for results via
+api/events.py.
 """
 
 import uuid
 import shutil
 import threading
 from pathlib import Path
-from collections import defaultdict
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import json
 
 from ml.pipeline.video_pipeline import run_pipeline
 from ml.behavior.kinetic import compute_kinematics, group_tracks
+from ml.behavior.fusion import fuse_events, prepare_gemini_events_for_fusion
 from ml.vlm.classifier import classify_event
+from ml.vlm.gemini_analysis import analyze_video
 
 router = APIRouter()
 
@@ -36,19 +38,20 @@ def _process_video(job_id: str, video_path: str):
     JOBS[job_id]["status"] = "processing"
     try:
         out_dir = RESULTS_DIR / job_id
-        result = run_pipeline(video_path, str(out_dir))
 
+        # --- Signal 1: kinematics (fast, free, motion-based) ---
+        result = run_pipeline(video_path, str(out_dir))
         grouped = group_tracks(result["events"])
         by_track = grouped["tracks"]
 
-        risk_events = []
+        kinematic_events = []
         for track_id, track_events in by_track.items():
             kinematics = compute_kinematics(result["events"], track_id)
             if not kinematics:
                 continue
             classification = classify_event(kinematics)
             if classification["risk_level"] != "low":
-                risk_events.append({
+                kinematic_events.append({
                     "track_id": track_id,
                     "start_time": track_events[0]["time_sec"],
                     "end_time": track_events[-1]["time_sec"],
@@ -56,12 +59,35 @@ def _process_video(job_id: str, video_path: str):
                     **classification,
                 })
 
+        # --- Signal 2: Gemini whole-video semantic analysis ---
+        # Wrapped defensively: if there's no API key, or Gemini's API fails
+        # (rate limit, network, bad output), fall back to kinematics-only
+        # rather than failing the whole job. This is the resilience story --
+        # a live demo shouldn't go down because one external API had a bad
+        # moment.
+        gemini_events_raw = []
+        gemini_error = None
+        try:
+            gemini_result = analyze_video(video_path)
+            gemini_events_raw = gemini_result.get("events", [])
+        except Exception as e:
+            gemini_error = str(e)
+
+        gemini_events = prepare_gemini_events_for_fusion(gemini_events_raw)
+
+        # --- Fusion: cross-validate the two signals ---
+        fused = fuse_events(kinematic_events, gemini_events)
+
         summary = {
             "total_frames": result["meta"]["frames_processed"],
             "total_tracked_objects": len(by_track),
             "untracked_detections_excluded": grouped["untracked_excluded"],
-            "risk_events": risk_events,
-            "risk_event_count": len(risk_events),
+            "kinematic_event_count": len(kinematic_events),
+            "gemini_event_count": len(gemini_events),
+            "gemini_error": gemini_error,  # None if Gemini succeeded
+            "fused_events": fused,
+            "fused_event_count": len(fused),
+            "confirmed_both_count": sum(1 for e in fused if e["source"] == "confirmed_both"),
         }
 
         with open(RESULTS_DIR / job_id / "summary.json", "w") as f:
