@@ -1,0 +1,251 @@
+{
+  "_source_notes": [
+    "Transcribed from the master plan's Ground-Truth Event Log and Part 2b per-clip benchmark table — these are Godrej's own on-screen labels, not model output, so confidence is set uniformly high (0.95) rather than varying per event.",
+    "Filenames match the 7 clips in the shared Google Drive folder ('Mumbai Branch - Damage Material RCA'), matched to clip numbers via content + relative file size against the benchmark table's frame counts.",
+    "dock_assumed=true on every clip: the master plan states footage spans Docks 06-10 across multiple dates but never maps a specific clip to a specific dock. Docks are assigned here in sequence (06,07,08,09,10,06,07) purely so the dashboard's per-dock aggregation has something real to group by — treat as illustrative, not verified.",
+    "product_sku assignments are inferred from each event's plain-language description (e.g. 'cupboard'/'KD panel' -> ABC-123) since the ground-truth table doesn't include SKU data; two events (the dock/vehicle gap and uneven dock level in Clip 1) have no product involved and are left product_sku=null.",
+    "Events combining two behaviors on one ground-truth row (e.g. Clip 1's 'Dragging + Improper Handling', Clip 4's 'Rolling and dropping', Clip 6's 'Throwing + stacking') are kept as single multi-label events, matching the master plan's own finding that multi-label incidents are real."
+  ],
+  "clips": [
+    {
+      "clip_number": 1,
+      "filename": "Dock level, dragging cupboard.mp4",
+      "dock": "06",
+      "dock_assumed": true,
+      "frames_processed": 930,
+      "person_track_ids": 44,
+      "events": [
+        {
+          "event_id": "EVT_C1_01",
+          "start_time": "00:05",
+          "end_time": "00:16",
+          "behavior": ["dock_vehicle_gap"],
+          "product_sku": null,
+          "confidence": 0.95,
+          "evidence": "Gap observed between the dock and the vehicle during loading.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C1_02",
+          "start_time": "00:24",
+          "end_time": "00:49",
+          "behavior": ["uneven_dock_level"],
+          "product_sku": null,
+          "confidence": 0.95,
+          "evidence": "Uneven dock level with no leveler in place.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C1_03",
+          "start_time": "00:54",
+          "end_time": "01:04",
+          "behavior": ["rough_handling"],
+          "product_sku": "ABC-123",
+          "confidence": 0.95,
+          "evidence": "Improper manual handling of a KD cupboard panel.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C1_04",
+          "start_time": "01:04",
+          "end_time": "01:09",
+          "behavior": ["product_dragged", "rough_handling"],
+          "product_sku": "ABC-123",
+          "confidence": 0.95,
+          "evidence": "KD cupboard panel dragged across the floor during improper handling.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 2,
+      "filename": "KD packets dragged, heavy box kept on other packets.mp4",
+      "dock": "07",
+      "dock_assumed": true,
+      "frames_processed": 1012,
+      "person_track_ids": 57,
+      "events": [
+        {
+          "event_id": "EVT_C2_01",
+          "start_time": "00:12",
+          "end_time": "00:13",
+          "behavior": ["improper_stacking"],
+          "product_sku": "ABC-123",
+          "confidence": 0.95,
+          "evidence": "Heavy box kept on top of other KD packets.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C2_02",
+          "start_time": "00:22",
+          "end_time": "00:28",
+          "behavior": ["product_dragged"],
+          "product_sku": "ABC-123",
+          "confidence": 0.95,
+          "evidence": "KD panel pulled by hand across the floor.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 3,
+      "filename": "Rolling and dragging on wet floor.mp4",
+      "dock": "08",
+      "dock_assumed": true,
+      "frames_processed": 183,
+      "person_track_ids": 26,
+      "events": [
+        {
+          "event_id": "EVT_C3_01",
+          "start_time": "00:03",
+          "end_time": "00:05",
+          "behavior": ["product_rolling"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Carton rolling across a wet floor.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 4,
+      "filename": "Rolling and dropping carton.mp4",
+      "dock": "09",
+      "dock_assumed": true,
+      "frames_processed": 282,
+      "person_track_ids": 28,
+      "events": [
+        {
+          "event_id": "EVT_C4_01",
+          "start_time": "00:02",
+          "end_time": "00:09",
+          "behavior": ["product_rolling", "product_dropped"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Carton rolled and then dropped during handling.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 5,
+      "filename": "Stepping on cartons, vertical product kept horizontally, heavy product kept on top.mp4",
+      "dock": "10",
+      "dock_assumed": true,
+      "frames_processed": 1471,
+      "person_track_ids": 115,
+      "events": [
+        {
+          "event_id": "EVT_C5_01",
+          "start_time": "00:03",
+          "end_time": "00:06",
+          "behavior": ["wrong_orientation"],
+          "product_sku": "ABC-123",
+          "confidence": 0.95,
+          "evidence": "Vertical product kept horizontally instead of upright.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C5_02",
+          "start_time": "00:12",
+          "end_time": "00:20",
+          "behavior": ["stepping_on_product"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Worker stepping on cartons while loading.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C5_03",
+          "start_time": "00:21",
+          "end_time": "00:23",
+          "behavior": ["improper_stacking"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Heavy carton dropped on top of another carton.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C5_04",
+          "start_time": "00:41",
+          "end_time": "00:43",
+          "behavior": ["stepping_on_product"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "A second worker observed stepping on cartons.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 6,
+      "filename": "Throwing Mattresses.mp4",
+      "dock": "06",
+      "dock_assumed": true,
+      "frames_processed": 1249,
+      "person_track_ids": 41,
+      "events": [
+        {
+          "event_id": "EVT_C6_01",
+          "start_time": "00:00",
+          "end_time": "00:07",
+          "behavior": ["product_thrown"],
+          "product_sku": "MATTRESS-001",
+          "confidence": 0.95,
+          "evidence": "Mattresses thrown during unloading.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C6_02",
+          "start_time": "00:12",
+          "end_time": "00:20",
+          "behavior": ["product_thrown", "improper_stacking"],
+          "product_sku": "MATTRESS-001",
+          "confidence": 0.95,
+          "evidence": "Mattresses thrown on top of each other.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C6_03",
+          "start_time": "00:27",
+          "end_time": "00:41",
+          "behavior": ["product_rolling"],
+          "product_sku": "MATTRESS-001",
+          "confidence": 0.95,
+          "evidence": "Mattress rolled across the floor.",
+          "status": "observed_behaviour"
+        }
+      ]
+    },
+    {
+      "clip_number": 7,
+      "filename": "Throwing seating cartons, using strap to hold.mp4",
+      "dock": "07",
+      "dock_assumed": true,
+      "frames_processed": 451,
+      "person_track_ids": 19,
+      "events": [
+        {
+          "event_id": "EVT_C7_01",
+          "start_time": "00:03",
+          "end_time": "00:15",
+          "behavior": ["product_thrown"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Seating cartons thrown while loading.",
+          "status": "observed_behaviour"
+        },
+        {
+          "event_id": "EVT_C7_02",
+          "start_time": "00:08",
+          "end_time": "00:12",
+          "behavior": ["improper_equipment_usage"],
+          "product_sku": "CARTON-001",
+          "confidence": 0.95,
+          "evidence": "Product held/pulled using the packaging strap instead of proper equipment.",
+          "status": "observed_behaviour"
+        }
+      ]
+    }
+  ]
+}

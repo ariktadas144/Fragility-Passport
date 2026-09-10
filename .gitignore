@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# Backend runtime artifacts (generated locally by scripts/seed_database.py etc.)
+backend/*.db
+backend/evidence/
+data/demo_snapshot.json
+.pytest_cache/
+
+# Env files
+.env
+
+# OS
+.DS_Store

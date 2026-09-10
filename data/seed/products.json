@@ -1,0 +1,27 @@
+[
+  {
+    "sku": "ABC-123",
+    "name": "KD Panel Cupboard (Interio)",
+    "category": "kd-panel-furniture",
+    "declared_value_inr": 8000,
+    "_note": "SKU and product reused verbatim from the README's own worked example."
+  },
+  {
+    "sku": "CARTON-001",
+    "name": "Standard Shipping Carton",
+    "category": "carton",
+    "declared_value_inr": 1500
+  },
+  {
+    "sku": "PALLET-001",
+    "name": "Wooden Pallet",
+    "category": "pallet",
+    "declared_value_inr": 2500
+  },
+  {
+    "sku": "MATTRESS-001",
+    "name": "Queen Mattress (Shrink-Wrapped)",
+    "category": "mattress",
+    "declared_value_inr": 12000
+  }
+]

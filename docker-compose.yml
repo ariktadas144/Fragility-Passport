@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:////app/data/db/fragility_passport.db
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
+      ESCALATION_SECONDS: "15"
+    volumes:
+      - backend_db:/app/data/db
+      - backend_evidence:/app/evidence
+
+  # --- Optional: swap SQLite for Postgres ---
+  # Uncomment this service, then point the backend's DATABASE_URL above to:
+  #   postgresql+psycopg://fragility:fragility@db:5432/fragility_passport
+  # (also add `psycopg[binary]` to backend/requirements.txt)
+  # db:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: fragility
+  #     POSTGRES_PASSWORD: fragility
+  #     POSTGRES_DB: fragility_passport
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+  # --- Workstream 3's frontend service goes here ---
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "5173:5173"
+  #   depends_on:
+  #     - backend
+
+volumes:
+  backend_db:
+  backend_evidence:
+  # postgres_data:
