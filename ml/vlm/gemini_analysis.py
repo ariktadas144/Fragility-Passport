@@ -6,7 +6,8 @@ into an importable module so backend/app/api/videos.py can call it directly
 instead of running it interactively in Colab. Logic is unchanged from the
 notebook -- same prompt, same validation, same handling-rules mapping.
 
-Requires GEMINI_API_KEY as an environment variable.
+Requires GEMINI_API_KEY. It is read from the environment; if absent, it is
+loaded from backend/.env (or a repo-root .env) via python-dotenv.
 """
 
 import os
@@ -17,10 +18,58 @@ import cv2
 from pathlib import Path
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv is optional -- env may be populated another way
+    load_dotenv = None
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
+# How long to wait for Gemini's server-side video processing to reach ACTIVE
+# before giving up. Without this the poll loop below could spin forever on a
+# stuck upload, hanging the whole job. Override with the env var.
+_DEFAULT_VIDEO_PROCESSING_TIMEOUT_SEC = 180.0
+
+# The Gemini Files API status endpoint intermittently returns HTTP 500s that
+# have nothing to do with the file itself. Tolerate this many before failing.
+_MAX_TRANSIENT_POLL_ERRORS = 5
+
+
+def _load_env() -> None:
+    """Populate GEMINI_API_KEY from a .env file if it's not already set.
+
+    Checks backend/.env first (where the rest of the app keeps its secrets),
+    then a repo-root .env. No-op if the key is already in the environment or
+    python-dotenv isn't installed.
+    """
+    if os.environ.get("GEMINI_API_KEY") or load_dotenv is None:
+        return
+    repo_root = Path(__file__).resolve().parents[2]
+    for candidate in (repo_root / "backend" / ".env", repo_root / ".env"):
+        if candidate.is_file():
+            load_dotenv(candidate, override=False)
+            if os.environ.get("GEMINI_API_KEY"):
+                return
+
+
+def _video_processing_timeout_sec() -> float:
+    raw = os.environ.get("GEMINI_VIDEO_PROCESSING_TIMEOUT")
+    if not raw:
+        return _DEFAULT_VIDEO_PROCESSING_TIMEOUT_SEC
+    try:
+        return max(30.0, float(raw))
+    except ValueError:
+        return _DEFAULT_VIDEO_PROCESSING_TIMEOUT_SEC
+
+
+# Closed vocabulary -- MUST stay in sync with the backend's
+# app/core/constants.py::BEHAVIOR_VOCABULARY (14 codes). The backend's
+# /events endpoint rejects any event carrying a code outside this set with a
+# 422, so a mismatch here silently drops detections. The first 10 are the
+# original notebook set; the last 4 were added by Workstream 4 to cover the
+# ground-truth taxonomy's static/dock behaviours.
 BEHAVIORS = [
     "product_dropped",
     "product_dragged",
@@ -32,6 +81,10 @@ BEHAVIORS = [
     "product_outside_designated_area",
     "improper_equipment_usage",
     "unsafe_loading_sequence",
+    "wrong_orientation",
+    "stepping_on_product",
+    "dock_vehicle_gap",
+    "uneven_dock_level",
 ]
 
 VALID_RISK = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
@@ -48,6 +101,10 @@ HANDLING_RULES = {
     "product_outside_designated_area": ("WH-008", "Stage products systematically in the designated area."),
     "improper_equipment_usage": ("WH-009", "Use the correct equipment for material movement."),
     "unsafe_loading_sequence": ("WH-010", "Load products in a stable and planned sequence."),
+    "wrong_orientation": ("WH-011", "Transport vertical products upright; never lay them horizontally."),
+    "stepping_on_product": ("WH-012", "Never step, stand, or climb on cartons or products."),
+    "dock_vehicle_gap": ("WH-013", "Bridge the dock-to-vehicle gap with a dock plate before loading."),
+    "uneven_dock_level": ("WH-014", "Use a dock leveller when dock and vehicle bed heights differ."),
 }
 
 
@@ -58,7 +115,16 @@ def timestamp_to_seconds(t: str) -> float:
     return int(minutes) * 60 + float(seconds)
 
 
+def _retry_options() -> "types.HttpRetryOptions":
+    """A few automatic retries with exponential backoff. gemini-3.1-flash-lite
+    + the Files API have been observed returning transient 500/503s on the
+    video path (model overloaded, Files API blips) even when the key and
+    model are fine -- retrying absorbs most of those."""
+    return types.HttpRetryOptions(attempts=3, initial_delay=2.0, max_delay=30.0, exp_base=2.0)
+
+
 def _get_client() -> genai.Client:
+    _load_env()
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError(
@@ -67,7 +133,7 @@ def _get_client() -> genai.Client:
         )
     return genai.Client(
         api_key=api_key,
-        http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1)),
+        http_options=types.HttpOptions(retry_options=_retry_options()),
     )
 
 
@@ -178,6 +244,51 @@ def _attach_handling_rules(events_data: dict) -> dict:
     return events_data
 
 
+def _upload_once_and_wait(client: genai.Client, video_path: str):
+    """Upload the video and poll until its state is ACTIVE. Raises
+    RuntimeError if Gemini reports FAILED, the wait times out, or the Files
+    API status endpoint keeps erroring."""
+    video_file = client.files.upload(file=video_path)
+    deadline = time.monotonic() + _video_processing_timeout_sec()
+    transient_errors = 0
+    while not video_file.state or video_file.state.name != "ACTIVE":
+        if video_file.state and video_file.state.name == "FAILED":
+            raise RuntimeError("Gemini failed to process the uploaded video.")
+        if time.monotonic() > deadline:
+            raise RuntimeError(
+                f"Gemini video processing did not reach ACTIVE within "
+                f"{_video_processing_timeout_sec():.0f}s "
+                f"(last state: {getattr(video_file.state, 'name', None)})."
+            )
+        time.sleep(5)
+        try:
+            video_file = client.files.get(name=video_file.name)
+        except errors.ServerError as exc:
+            # The Files API status endpoint intermittently 500s ("Failed to
+            # convert server response to JSON") independent of the actual
+            # file state. Tolerate a few before giving up.
+            transient_errors += 1
+            if transient_errors > _MAX_TRANSIENT_POLL_ERRORS:
+                raise RuntimeError(
+                    f"Gemini Files API kept failing while polling video status "
+                    f"({transient_errors} server errors): {exc}"
+                ) from exc
+    return video_file
+
+
+def _upload_and_wait_active(client: genai.Client, video_path: str):
+    """As _upload_once_and_wait, but retries the whole upload once if Gemini
+    reports the file FAILED -- observed to be intermittent for the same clip
+    (one attempt FAILED, the next ACTIVE, minutes apart)."""
+    try:
+        return _upload_once_and_wait(client, video_path)
+    except RuntimeError as exc:
+        if "failed to process" not in str(exc).lower():
+            raise
+        time.sleep(3)
+        return _upload_once_and_wait(client, video_path)
+
+
 def analyze_video(video_path: str) -> dict:
     """
     Uploads a video to Gemini, runs whole-video behavior analysis, validates
@@ -201,13 +312,7 @@ def analyze_video(video_path: str) -> dict:
     client = _get_client()
     duration = _get_video_duration(video_path)
 
-    video_file = client.files.upload(file=video_path)
-    while not video_file.state or video_file.state.name != "ACTIVE":
-        if video_file.state and video_file.state.name == "FAILED":
-            raise RuntimeError("Gemini failed to process the uploaded video.")
-        time.sleep(5)
-        video_file = client.files.get(name=video_file.name)
-
+    video_file = _upload_and_wait_active(client, video_path)
     prompt = _build_prompt(video_path, duration)
 
     response = client.models.generate_content(
@@ -217,7 +322,7 @@ def analyze_video(video_path: str) -> dict:
             response_mime_type="application/json",
             temperature=0.1,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1)),
+            http_options=types.HttpOptions(retry_options=_retry_options()),
         ),
     )
 

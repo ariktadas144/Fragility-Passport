@@ -1,38 +1,42 @@
-{
-  "INTERIO-CUPBOARD-001": {
-    "product_name": "Interio Wooden Cupboard",
-    "max_tilt_degrees": 40,
-    "max_drop_height_cm": 15,
-    "required_orientation": "upright",
-    "max_stack_weight_kg": 0,
+[
+  {
+    "product_sku": "ABC-123",
+    "max_tilt_deg": 40,
+    "max_drop_height_cm": 5,
+    "required_orientation": "UPRIGHT",
+    "max_stack_weight_kg": 10,
     "drag_allowed": false,
-    "notes": "Vertical product - must not be laid horizontally per Godrej taxonomy"
+    "throw_allowed": false,
+    "notes": "README worked example: 'SKU-class Interio-Cupboard: tilt exceeded 40°. Contract requires upright transport only.'"
   },
-  "INTERIO-MATTRESS-001": {
-    "product_name": "Interio Mattress",
-    "max_tilt_degrees": 90,
+  {
+    "product_sku": "CARTON-001",
+    "max_tilt_deg": 60,
     "max_drop_height_cm": 30,
-    "required_orientation": "any",
-    "max_stack_weight_kg": 0,
-    "drag_allowed": false,
-    "notes": "Should be carried flat, not rolled/thrown per Godrej taxonomy"
-  },
-  "KD-PANEL-001": {
-    "product_name": "Knock-Down Furniture Panel",
-    "max_tilt_degrees": 25,
-    "max_drop_height_cm": 10,
-    "required_orientation": "flat",
+    "required_orientation": "ANY",
     "max_stack_weight_kg": 20,
     "drag_allowed": false,
-    "notes": "Fragile edges - no heavy items stacked on top, no dragging"
+    "throw_allowed": false,
+    "notes": "Generic shipping carton — no dragging or throwing tolerance."
   },
-  "SEATING-CARTON-001": {
-    "product_name": "Seating Furniture Carton",
-    "max_tilt_degrees": 30,
+  {
+    "product_sku": "PALLET-001",
+    "max_tilt_deg": 90,
+    "max_drop_height_cm": 50,
+    "required_orientation": "ANY",
+    "max_stack_weight_kg": 500,
+    "drag_allowed": true,
+    "throw_allowed": false,
+    "notes": "Designed to be moved by pallet jack; dragging is normal handling for this class."
+  },
+  {
+    "product_sku": "MATTRESS-001",
+    "max_tilt_deg": 90,
     "max_drop_height_cm": 20,
-    "required_orientation": "upright",
-    "max_stack_weight_kg": 15,
-    "drag_allowed": false,
-    "notes": "Must be lifted at marked points, not by packaging straps"
+    "required_orientation": "ANY",
+    "max_stack_weight_kg": 5,
+    "drag_allowed": true,
+    "throw_allowed": false,
+    "notes": "Flexible/soft product — dragging tolerated, throwing explicitly prohibited (matches the pilot footage's throwing-mattresses incidents)."
   }
-}
+]

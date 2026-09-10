@@ -5,3 +5,9 @@ data/uploads/
 data/processed/
 .env
 node_modules/
+
+# Backend runtime artifacts
+backend/*.db
+backend/evidence/
+data/accelerometer/
+yolov8n.pt
