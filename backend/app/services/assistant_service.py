@@ -4,10 +4,11 @@ source for, (2) answer straightforward questions directly from the event
 log with no AI call at all, (3) only hand genuinely interpretive questions
 to a real language model.
 
-Workstream 2 owns the actual Gemini connection. This file never imports a
-specific AI vendor — it defines ReasoningClient, an abstract "socket" that
-Workstream 2's real implementation plugs into. Until that's wired up,
-NullReasoningClient is used, which just says so honestly.
+The actual Gemini connection lives in app.services.gemini_reasoning
+(GeminiReasoningClient) — this file only defines ReasoningClient, the
+abstract "socket" it plugs into, and stays vendor-agnostic. If no key is
+configured, or a Gemini call fails, NullReasoningClient is used instead so
+this path never 500s.
 """
 import re
 from abc import ABC, abstractmethod
@@ -15,6 +16,7 @@ from abc import ABC, abstractmethod
 from sqlalchemy.orm import Session
 
 from app.core.constants import UNAVAILABLE_DATA_KEYWORDS
+from app.core.logging import get_logger
 from app.models.behavior import Behavior
 from app.models.event import Event
 from app.models.event_behavior import EventBehavior
@@ -22,29 +24,38 @@ from app.schemas.assistant import AssistantAnswer
 from app.schemas.event import EventListItem
 from app.services import event_service
 
+logger = get_logger(__name__)
+
 EVENT_ID_PATTERN = re.compile(r"\bEVT_[A-Z0-9]+\b", re.IGNORECASE)
 
 
 class ReasoningClient(ABC):
     """The interface any real LLM integration (Gemini, etc.) must implement.
-    Workstream 2 writes a concrete subclass elsewhere and passes it into
-    answer_question() — this file has no idea which AI vendor is behind it."""
+    A concrete subclass (app.services.gemini_reasoning.GeminiReasoningClient)
+    is passed into answer_question() — this file has no idea which AI vendor
+    is behind it."""
 
     @abstractmethod
-    def answer(self, question: str, context_events: list[Event]) -> str:
+    def answer(self, question: str, context_events: list[Event]) -> AssistantAnswer:
         """Given the question and the relevant events as grounding context,
-        return a plain-language answer."""
+        return the assistant's answer. Implementations must set source to
+        "llm" for a real answer, or "unavailable" when the context does not
+        support one."""
         raise NotImplementedError
 
 
 class NullReasoningClient(ReasoningClient):
-    """Default stand-in used until Workstream 2's real client is wired up."""
+    """Honest stand-in used when no Gemini key is configured, or as the
+    fallback when a Gemini call fails."""
 
-    def answer(self, question: str, context_events: list[Event]) -> str:
-        return (
-            "AI reasoning isn't connected yet in this environment. "
-            "This question needs interpretation beyond a direct lookup, "
-            "so it would normally be routed to the VLM reasoning layer."
+    def answer(self, question: str, context_events: list[Event]) -> AssistantAnswer:
+        return AssistantAnswer(
+            answer=(
+                "AI reasoning isn't available right now. This question needs "
+                "interpretation beyond a direct lookup — try rephrasing it as "
+                "a specific question about a logged event, dock, or risk level."
+            ),
+            source="llm",
         )
 
 
@@ -144,6 +155,22 @@ def _try_answer_locally(db: Session, question: str) -> AssistantAnswer | None:
     return None
 
 
+def _context_events_for(db: Session, question: str, limit: int = 50) -> list[Event]:
+    """The slice of the event log handed to the reasoning client as grounding.
+    Recent events, with any event named by id in the question pulled to the
+    front so it's always present even if it's older than `limit`."""
+    events = db.query(Event).order_by(Event.created_at.desc()).limit(limit).all()
+
+    id_match = EVENT_ID_PATTERN.search(question)
+    if id_match:
+        try:
+            focus = event_service.get_event_by_public_id(db, id_match.group(0).upper())
+            events = [focus] + [e for e in events if e.id != focus.id]
+        except Exception:  # noqa: BLE001 -- unknown id, just use the recent slice
+            pass
+    return events
+
+
 def answer_question(
     db: Session, question: str, reasoning_client: ReasoningClient | None = None
 ) -> AssistantAnswer:
@@ -158,6 +185,15 @@ def answer_question(
     if local_answer is not None:
         return local_answer
 
-    client = reasoning_client or NullReasoningClient()
-    context_events = db.query(Event).order_by(Event.created_at.desc()).limit(50).all()
-    return AssistantAnswer(answer=client.answer(question, context_events), source="llm")
+    context_events = _context_events_for(db, question)
+
+    if reasoning_client is None:
+        from app.services.gemini_reasoning import build_default_reasoning_client
+
+        reasoning_client = build_default_reasoning_client()
+
+    try:
+        return reasoning_client.answer(question, context_events)
+    except Exception as exc:  # noqa: BLE001 -- Gemini must never 500 the endpoint
+        logger.warning("Reasoning client failed (%s); falling back to NullReasoningClient", exc)
+        return NullReasoningClient().answer(question, context_events)
