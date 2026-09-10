@@ -2,9 +2,16 @@
 Gemini whole-video behavior analysis.
 
 Converted from the original prototype notebook (ml/vlm/Warehouse_AI_Video_Intelligence_Notebook.ipynb)
-into an importable module so backend/app/api/videos.py can call it directly
-instead of running it interactively in Colab. Logic is unchanged from the
-notebook -- same prompt, same validation, same handling-rules mapping.
+into an importable module so ml/pipeline/orchestrator.py can call it directly
+instead of running it interactively in Colab. Prompt, validation, and
+handling-rules mapping are unchanged from the notebook.
+
+The video is sent as inline bytes in the generate_content request (with a
+downscale pass for long clips), NOT via the Files API -- the Files API's
+upload + status-polling has been the source of nearly every failure we've
+seen (FAILED / 500 / 503) while inline requests and plain text calls on the
+same key succeed. Files API is kept as a fallback for clips too large to
+inline; force it with GEMINI_FORCE_FILES_API=1.
 
 Requires GEMINI_API_KEY. It is read from the environment; if absent, it is
 loaded from backend/.env (or a repo-root .env) via python-dotenv.
@@ -35,6 +42,23 @@ _DEFAULT_VIDEO_PROCESSING_TIMEOUT_SEC = 180.0
 # The Gemini Files API status endpoint intermittently returns HTTP 500s that
 # have nothing to do with the file itself. Tolerate this many before failing.
 _MAX_TRANSIENT_POLL_ERRORS = 5
+
+# The video is sent as inline bytes in the generate_content request by default
+# -- this skips the Files API (upload + status polling) entirely, which is
+# where nearly every observed failure has come from. Clips larger than this
+# (after an optional downscale pass) fall back to the Files API. The hard
+# request cap is ~20 MB total; stay under it.
+_GEMINI_INLINE_MAX_BYTES = 18 * 1024 * 1024
+_INLINE_DOWNSCALE_WIDTH = 640
+_INLINE_DOWNSCALE_FPS = 10
+
+_MIME_BY_EXT = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+}
 
 
 def _load_env() -> None:
@@ -116,11 +140,15 @@ def timestamp_to_seconds(t: str) -> float:
 
 
 def _retry_options() -> "types.HttpRetryOptions":
-    """A few automatic retries with exponential backoff. gemini-3.1-flash-lite
-    + the Files API have been observed returning transient 500/503s on the
-    video path (model overloaded, Files API blips) even when the key and
-    model are fine -- retrying absorbs most of those."""
-    return types.HttpRetryOptions(attempts=3, initial_delay=2.0, max_delay=30.0, exp_base=2.0)
+    """Automatic retries with exponential backoff. gemini-3.1-flash-lite has
+    been returning frequent transient 503s ("model experiencing high demand")
+    -- and the Files API 500s -- even when the key and model are fine.
+    Retrying absorbs most of those. Tune the ceiling with GEMINI_RETRY_ATTEMPTS."""
+    try:
+        attempts = max(1, int(os.environ.get("GEMINI_RETRY_ATTEMPTS", "5")))
+    except ValueError:
+        attempts = 5
+    return types.HttpRetryOptions(attempts=attempts, initial_delay=2.0, max_delay=60.0, exp_base=2.0)
 
 
 def _get_client() -> genai.Client:
@@ -289,9 +317,73 @@ def _upload_and_wait_active(client: genai.Client, video_path: str):
         return _upload_once_and_wait(client, video_path)
 
 
+def _mime_type_for(video_path: str) -> str:
+    return _MIME_BY_EXT.get(Path(video_path).suffix.lower(), "video/mp4")
+
+
+def _downscaled_mp4(video_path: str) -> str:
+    """Re-encode the clip to <=640px wide at ~10fps into a temp .mp4, so a
+    long clip still fits in an inline request. Returns the temp path (the
+    caller is responsible for deleting it)."""
+    import tempfile
+
+    cap = cv2.VideoCapture(video_path)
+    src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    scale = min(1.0, _INLINE_DOWNSCALE_WIDTH / w) if w else 1.0
+    out_w = max(2, int(w * scale) - int(w * scale) % 2)
+    out_h = max(2, int(h * scale) - int(h * scale) % 2)
+    step = max(1, round(src_fps / _INLINE_DOWNSCALE_FPS))
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    writer = cv2.VideoWriter(tmp_path, cv2.VideoWriter_fourcc(*"mp4v"), src_fps / step, (out_w, out_h))
+    idx = 0
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        if idx % step == 0:
+            writer.write(cv2.resize(frame, (out_w, out_h)))
+        idx += 1
+    writer.release()
+    cap.release()
+    return tmp_path
+
+
+def _inline_part(data: bytes, mime_type: str) -> types.Part:
+    return types.Part(inline_data=types.Blob(data=data, mime_type=mime_type))
+
+
+def _video_content_part(client: genai.Client, video_path: str):
+    """Return the Content part for the video. Prefers inline bytes; falls back
+    to the (flaky) Files API only when a clip is too large to inline even
+    after a downscale pass. Set GEMINI_FORCE_FILES_API=1 to always use the
+    Files API."""
+    if os.environ.get("GEMINI_FORCE_FILES_API") == "1":
+        return _upload_and_wait_active(client, video_path)
+
+    if os.path.getsize(video_path) <= _GEMINI_INLINE_MAX_BYTES:
+        return _inline_part(Path(video_path).read_bytes(), _mime_type_for(video_path))
+
+    tmp_path = None
+    try:
+        tmp_path = _downscaled_mp4(video_path)
+        if 0 < os.path.getsize(tmp_path) <= _GEMINI_INLINE_MAX_BYTES:
+            return _inline_part(Path(tmp_path).read_bytes(), "video/mp4")
+    except Exception:  # noqa: BLE001 -- downscale is best-effort, Files API is the fallback
+        pass
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    return _upload_and_wait_active(client, video_path)
+
+
 def analyze_video(video_path: str) -> dict:
     """
-    Uploads a video to Gemini, runs whole-video behavior analysis, validates
+    Sends a video to Gemini, runs whole-video behavior analysis, validates
     the response, attaches handling rules, and returns the event log.
 
     Returns the same shape as warehouse_event_log.json in the original notebook:
@@ -312,17 +404,17 @@ def analyze_video(video_path: str) -> dict:
     client = _get_client()
     duration = _get_video_duration(video_path)
 
-    video_file = _upload_and_wait_active(client, video_path)
+    video_part = _video_content_part(client, video_path)
     prompt = _build_prompt(video_path, duration)
 
     response = client.models.generate_content(
         model=GEMINI_MODEL,
-        contents=[video_file, prompt],
+        contents=[video_part, prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.1,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            http_options=types.HttpOptions(retry_options=_retry_options()),
+            http_options=types.HttpOptions(timeout=180_000, retry_options=_retry_options()),
         ),
     )
 

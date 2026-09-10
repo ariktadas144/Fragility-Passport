@@ -34,62 +34,78 @@ def _windows_overlap(a_start: float, a_end: float, b_start: float, b_end: float,
 
 def fuse_events(kinematic_events: List[dict], gemini_events: List[dict]) -> List[Dict]:
     """
-    kinematic_events: from backend/app/api/videos.py's per-track risk
+    kinematic_events: from ml/pipeline/orchestrator.py's per-track risk
         classification, each with start_time/end_time (seconds, floats)
     gemini_events: from ml/vlm/gemini_analysis.analyze_video()'s "events"
         list, each with start_time/end_time (Gemini's "MM:SS" strings --
         convert with ml.vlm.gemini_analysis.timestamp_to_seconds before
         calling this function)
 
-    Returns a unified list, each item tagged with "source":
-        "confirmed_both"     -- kinematics AND Gemini both flagged this window
-        "vlm_only"           -- only Gemini flagged it (e.g. static/stacking risk)
-        "kinematics_only"    -- only motion tracking flagged it (Gemini may have
-                                 missed it, or it's a false positive worth
-                                 lower confidence -- surface it, don't hide it)
+    The output has ONE entry per real-world event, tagged with "source":
+        "confirmed_both"     -- a Gemini event that one or more kinematic
+                                 windows overlap. All the overlapping
+                                 kinematic signals are attached
+                                 (`kinematic_signals`); `kinematic_signal`
+                                 holds the first for backwards compatibility.
+        "vlm_only"           -- a Gemini event no kinematic window overlaps
+                                 (e.g. a static/stacking risk).
+        "kinematics_only"    -- a kinematic window no Gemini event overlaps
+                                 (Gemini may have missed it, or it's a false
+                                 positive worth lower confidence -- surface
+                                 it, don't hide it).
+
+    Anchoring on the Gemini events (rather than iterating kinematic events and
+    emitting one confirmed_both per match) is what stops a single semantic
+    event from being reported N times when N tracked objects move through its
+    time window.
     """
-    fused = []
-    matched_gemini_indices = set()
+    fused: List[Dict] = []
+    matched_kinematic_ids = set()
 
-    for k_event in kinematic_events:
-        k_start, k_end = k_event["start_time"], k_event["end_time"]
-        matched = False
+    for g_event in gemini_events:
+        g_start, g_end = g_event["_start_sec"], g_event["_end_sec"]
 
-        for i, g_event in enumerate(gemini_events):
-            g_start, g_end = g_event["_start_sec"], g_event["_end_sec"]
-            if _windows_overlap(k_start, k_end, g_start, g_end, OVERLAP_TOLERANCE_SEC):
-                fused.append({
-                    "source": "confirmed_both",
-                    "start_time": min(k_start, g_start),
-                    "end_time": max(k_end, g_end),
-                    "kinematic_signal": k_event,
-                    "vlm_signal": g_event,
-                    "risk_level": g_event.get("risk_level", "MEDIUM"),  # trust VLM's semantic risk level
-                })
-                matched_gemini_indices.add(i)
-                matched = True
-                break
+        overlapping = []
+        for i, k in enumerate(kinematic_events):
+            if i in matched_kinematic_ids:
+                continue
+            if _windows_overlap(k["start_time"], k["end_time"], g_start, g_end, OVERLAP_TOLERANCE_SEC):
+                overlapping.append(k)
+                matched_kinematic_ids.add(i)
 
-        if not matched:
+        if overlapping:
             fused.append({
-                "source": "kinematics_only",
-                "start_time": k_start,
-                "end_time": k_end,
-                "kinematic_signal": k_event,
-                "vlm_signal": None,
-                "risk_level": k_event.get("risk_level", "medium").upper(),
+                "source": "confirmed_both",
+                "start_time": min(g_start, min(k["start_time"] for k in overlapping)),
+                "end_time": max(g_end, max(k["end_time"] for k in overlapping)),
+                "kinematic_signal": overlapping[0],
+                "kinematic_signals": overlapping,
+                "vlm_signal": g_event,
+                "risk_level": g_event.get("risk_level", "MEDIUM"),  # trust VLM's semantic risk level
             })
-
-    for i, g_event in enumerate(gemini_events):
-        if i not in matched_gemini_indices:
+        else:
             fused.append({
                 "source": "vlm_only",
-                "start_time": g_event["_start_sec"],
-                "end_time": g_event["_end_sec"],
+                "start_time": g_start,
+                "end_time": g_end,
                 "kinematic_signal": None,
+                "kinematic_signals": [],
                 "vlm_signal": g_event,
                 "risk_level": g_event.get("risk_level", "MEDIUM"),
             })
+
+    for i, k_event in enumerate(kinematic_events):
+        if i in matched_kinematic_ids:
+            continue
+        fused.append({
+            "source": "kinematics_only",
+            "start_time": k_event["start_time"],
+            "end_time": k_event["end_time"],
+            "kinematic_signal": k_event,
+            "kinematic_signals": [k_event],
+            "vlm_signal": None,
+            "risk_level": k_event.get("risk_level", "medium").upper(),
+        })
 
     fused.sort(key=lambda e: e["start_time"])
     return fused

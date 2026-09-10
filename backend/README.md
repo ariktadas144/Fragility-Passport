@@ -86,11 +86,13 @@ python -m ml.pipeline.orchestrator path/to/clip.mp4 --dock 06 --product-sku ABC-
   point `DATABASE_URL` at Postgres for anything real.
 - **CORS** is limited to localhost dev origins in `app/config.py` — add the
   deployed frontend origin before deploying.
-- **Gemini's video path is flaky right now** — the same clip intermittently
-  comes back `FAILED` / `503` / a Files-API `500` while plain text calls on
-  the same key succeed. `gemini_analysis.py` retries transient errors and
-  re-uploads once on `FAILED`; past that, the pipeline falls back to
-  kinematics-only rather than failing the job.
+- **Gemini video** is sent as inline bytes in the request, not via the Files
+  API — the Files API's upload + status polling was failing constantly
+  (`FAILED` / `500` / `503`) while inline requests on the same key work.
+  Clips over ~18 MB get downscaled (640px, ~10fps) before inlining; only if
+  still too large do they fall back to the Files API (`GEMINI_FORCE_FILES_API=1`
+  forces it). Transient `503`s are retried; a hard failure falls back to
+  kinematics-only.
 - **`reports/` HTML preview** has one failing test on Python 3.14
   (`test_get_report_html_preview`) — a Jinja/template rendering issue in
   Workstream 4's report layer, unrelated to event ingestion. Passes on the

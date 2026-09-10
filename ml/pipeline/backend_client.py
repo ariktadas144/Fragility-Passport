@@ -170,6 +170,7 @@ def submit_fused_events(
     url = f"{base}/events"
 
     results: list[dict] = []
+    seen_event_ids: set[str] = set()
     with httpx.Client(timeout=timeout) as client:
         for index, fused_event in enumerate(fused_events):
             detection = fused_event_to_detection(
@@ -183,6 +184,14 @@ def submit_fused_events(
                 results.append({"index": index, "ok": False, "skipped": True,
                                 "reason": "no usable behavior code"})
                 continue
+
+            event_id = detection.get("event_id")
+            if event_id and event_id in seen_event_ids:
+                results.append({"index": index, "ok": False, "skipped": True,
+                                "reason": f"duplicate event_id {event_id} in batch"})
+                continue
+            if event_id:
+                seen_event_ids.add(event_id)
 
             try:
                 resp = client.post(url, json=detection, headers=headers)
