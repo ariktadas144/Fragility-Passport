@@ -57,3 +57,32 @@ def group_tracks(events: List[dict]) -> dict:
             continue
         by_track[e["track_id"]].append(e)
     return {"tracks": dict(by_track), "untracked_excluded": untracked_count}
+
+
+# ---------------------------------------------------------------------------
+# Frame-level kinetic primitives (DS/ML workstream, from the "Initial ML
+# workstream" merge). These operate on raw [x1, y1, x2, y2] boxes rather than
+# the pipeline's event stream. Not yet wired into run_pipeline / fusion --
+# kept here so both APIs live in one module; reconcile with compute_kinematics
+# above when the fine-tuned detector lands.
+# ---------------------------------------------------------------------------
+
+import math  # noqa: E402
+
+
+def calc_velocity(box1, box2, dt):
+    cx1, cy1 = (box1[0] + box1[2]) / 2, (box1[1] + box1[3]) / 2
+    cx2, cy2 = (box2[0] + box2[2]) / 2, (box2[1] + box2[3]) / 2
+    dist = ((cx2 - cx1) ** 2 + (cy2 - cy1) ** 2) ** 0.5
+    return dist / dt if dt > 0 else 0
+
+
+def calc_drop_height(y_start, y_end):
+    """Positive when the box moves downward (y increases) between frames; upward motion (lifting) returns 0."""
+    return max(y_end - y_start, 0)
+
+
+def calc_tilt_angle(box):
+    w = box[2] - box[0]
+    h = box[3] - box[1]
+    return math.degrees(math.atan2(h, w))

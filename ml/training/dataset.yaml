@@ -1,0 +1,9 @@
+path: ../../data/dataset
+train: images/train
+val: images/val
+
+names:
+  0: carton
+  1: pallet
+  2: kd_panel
+  3: mattress
