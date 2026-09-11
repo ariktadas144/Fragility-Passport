@@ -3,9 +3,11 @@ node_modules/
 /node_modules/
 
 # Python
+.venv/
 __pycache__/
 *.pyc
 venv/
+*.egg-info/
 
 # Models / weights
 *.pt
@@ -15,7 +17,7 @@ models/
 # Editors
 .vscode/
 
-# Secrets
+# Secrets / Env files
 .env
 
 # Data (raw inputs, pipeline scratch, evidence)
@@ -27,7 +29,14 @@ data/dataset/images/
 data/overlay_review/
 data/overlay_screen_report.csv
 data/accelerometer/
+data/demo_snapshot.json
 
 # Backend runtime artifacts
 backend/*.db
 backend/evidence/
+
+# Testing
+.pytest_cache/
+
+# OS
+.DS_Store

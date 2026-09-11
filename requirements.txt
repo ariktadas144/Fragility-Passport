@@ -1,0 +1,4 @@
+# scripts/*.py (seed_database.py, import_events.py, process_video.py,
+# generate_demo_data.py) import the backend's app.* code directly and run
+# in-process — they need exactly the backend's dependencies, nothing extra.
+-r backend/requirements.txt
