@@ -1,1 +1,7 @@
 /node_modules/
+__pycache__/
+*.pyc
+*.pt
+data/uploads/
+data/processed/
+.env
