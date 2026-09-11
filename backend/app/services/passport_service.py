@@ -1,51 +1,43 @@
-"""
-Fragility Passport lookup service.
+"""Fragility Passport lookup + CRUD: the "handling contract" the loading-bay
+camera checks real behavior against. get_passport_by_sku is what
+GET /passports/scan/{code} calls for Workstream 5's live QR-scan demo."""
+from sqlalchemy.orm import Session
 
-Reads from data/seed/fragility_passports.json for now. Whoever owns the
-database layer can swap this for a real DB-backed lookup (e.g. querying
-the fragility_passport SQLAlchemy model) -- keep the same function
-signatures and the API layer (api/passports.py) doesn't need to change.
-"""
-
-import json
-from pathlib import Path
-
-_CONTRACTS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "seed" / "fragility_passports.json"
+from app.core.exceptions import ConflictError, NotFoundError
+from app.models.fragility_passport import FragilityPassport
+from app.models.product import Product
+from app.schemas.passport import FragilityPassportCreate
 
 
-def load_contracts() -> dict:
-    with open(_CONTRACTS_PATH) as f:
-        return json.load(f)
+def get_product(db: Session, product_id: int) -> Product | None:
+    return db.get(Product, product_id)
 
 
-def get_contract(product_code: str) -> dict | None:
-    contracts = load_contracts()
-    return contracts.get(product_code.upper())
+def get_product_by_sku(db: Session, sku: str) -> Product | None:
+    return db.query(Product).filter(Product.sku == sku).first()
 
 
-def check_violation(product_code: str, observed: dict) -> dict:
-    """
-    observed = {"tilt_degrees": float, "drop_height_cm": float, "was_dragged": bool}
-    """
-    contract = get_contract(product_code)
-    if not contract:
-        return {"error": f"No contract found for product code '{product_code}'"}
+def get_passport_for_product(db: Session, product_id: int) -> FragilityPassport | None:
+    return db.query(FragilityPassport).filter(FragilityPassport.product_id == product_id).first()
 
-    violations = []
-    if observed.get("tilt_degrees", 0) > contract["max_tilt_degrees"]:
-        violations.append(
-            f"Tilt {observed['tilt_degrees']}\u00b0 exceeds max {contract['max_tilt_degrees']}\u00b0"
-        )
-    if observed.get("drop_height_cm", 0) > contract["max_drop_height_cm"]:
-        violations.append(
-            f"Drop height {observed['drop_height_cm']}cm exceeds max {contract['max_drop_height_cm']}cm"
-        )
-    if observed.get("was_dragged") and not contract["drag_allowed"]:
-        violations.append("Dragging detected but not permitted for this product")
 
-    return {
-        "product_code": product_code,
-        "product_name": contract["product_name"],
-        "violations": violations,
-        "compliant": len(violations) == 0,
-    }
+def get_passport_by_sku(db: Session, sku: str) -> tuple[Product, FragilityPassport] | None:
+    """A QR code on a box encodes a SKU; this is what scanning it resolves to."""
+    product = get_product_by_sku(db, sku)
+    if product is None or product.passport is None:
+        return None
+    return product, product.passport
+
+
+def create_passport(db: Session, payload: FragilityPassportCreate) -> FragilityPassport:
+    product = get_product(db, payload.product_id)
+    if product is None:
+        raise NotFoundError(f"Product {payload.product_id} not found")
+    if get_passport_for_product(db, payload.product_id) is not None:
+        raise ConflictError(f"Product {payload.product_id} already has a Fragility Passport")
+
+    passport = FragilityPassport(**payload.model_dump())
+    db.add(passport)
+    db.commit()
+    db.refresh(passport)
+    return passport

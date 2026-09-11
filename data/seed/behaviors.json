@@ -1,0 +1,16 @@
+[
+  {"code": "product_dropped", "label": "Dropping product", "category": "kinetic", "default_severity": 4},
+  {"code": "product_dragged", "label": "Dragging carton/KD packet", "category": "kinetic", "default_severity": 3},
+  {"code": "product_thrown", "label": "Throwing/dropping product", "category": "kinetic", "default_severity": 5},
+  {"code": "product_rolling", "label": "Rolling carton/mattress", "category": "kinetic", "default_severity": 3},
+  {"code": "rough_handling", "label": "Improper/manual mishandling", "category": "kinetic", "default_severity": 3},
+  {"code": "improper_stacking", "label": "Heavy-on-light stacking", "category": "static", "default_severity": 3},
+  {"code": "unstable_stacking", "label": "Unstable stack configuration", "category": "static", "default_severity": 3},
+  {"code": "product_outside_designated_area", "label": "Product outside designated area", "category": "static", "default_severity": 2},
+  {"code": "improper_equipment_usage", "label": "Wrong strap/equipment use", "category": "kinetic", "default_severity": 3},
+  {"code": "unsafe_loading_sequence", "label": "Unsafe loading sequence", "category": "static", "default_severity": 3},
+  {"code": "wrong_orientation", "label": "Vertical product kept horizontally", "category": "static", "default_severity": 4},
+  {"code": "stepping_on_product", "label": "Stepping on cartons", "category": "kinetic", "default_severity": 3},
+  {"code": "dock_vehicle_gap", "label": "Gap between dock and vehicle", "category": "static", "default_severity": 3},
+  {"code": "uneven_dock_level", "label": "Uneven dock level, no leveler", "category": "static", "default_severity": 2}
+]

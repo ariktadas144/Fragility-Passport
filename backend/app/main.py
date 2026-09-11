@@ -1,47 +1,87 @@
-"""
-Fragility Passport -- FastAPI app entrypoint.
-
-Wires together: video upload -> detection/tracking pipeline (ml/) ->
-risk classification (ml/vlm/) -> event storage -> API routes consumed
-by the frontend dashboard.
-
-Run locally:
-    cd backend
-    pip install -r requirements.txt
-    uvicorn app.main:app --reload --port 8000
-
-Then open http://localhost:8000/docs for interactive API testing.
-"""
-
-import sys
+"""FastAPI application entrypoint. Wires together every router, enables
+CORS for the frontend, creates database tables on startup, and runs the
+alert auto-escalation timer as a background task for as long as the app is
+running. Start with: uvicorn app.main:app --reload (from backend/)."""
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
-
-# Allow imports of the top-level ml/ package from within backend/
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import health, videos, events, passports, assistant
+from app.api import (
+    accelerometer,
+    alerts,
+    assistant,
+    dashboard,
+    events,
+    health,
+    passports,
+    pipeline,
+    products,
+    reports,
+    videos,
+)
+from app.config import get_settings
+from app.core.logging import configure_logging, get_logger
+from app.database.database import SessionLocal, init_db
+from app.services.alert_service import escalate_stale_alerts
 
-BASE_DIR = Path(__file__).parent.parent.parent
+settings = get_settings()
+configure_logging()
+logger = get_logger(__name__)
 
-app = FastAPI(title="Fragility Passport API")
+
+async def _escalation_loop() -> None:
+    """Runs forever in the background: every escalation_poll_interval_seconds,
+    check for ACTIVE HIGH/CRITICAL alerts nobody has acknowledged in time and
+    flip them to ESCALATED. This is what stops a missed alert from silently
+    sitting there — see alert_service.escalate_stale_alerts."""
+    while True:
+        await asyncio.sleep(settings.escalation_poll_interval_seconds)
+        db = SessionLocal()
+        try:
+            escalated = escalate_stale_alerts(db, settings.escalation_seconds)
+            if escalated:
+                logger.info("Auto-escalated %d stale alert(s)", len(escalated))
+        finally:
+            db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    task = asyncio.create_task(_escalation_loop())
+    logger.info("%s started (environment=%s)", settings.app_name, settings.environment)
+    yield
+    task.cancel()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # fine for hackathon demo; tighten before anything real
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-static_dir = BASE_DIR / "frontend" / "public"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+app.include_router(health.router)
+app.include_router(videos.router)
+app.include_router(events.router)
+app.include_router(products.router)
+app.include_router(passports.router)
+app.include_router(alerts.router)
+app.include_router(dashboard.router)
+app.include_router(assistant.router)
+app.include_router(reports.router)
+app.include_router(accelerometer.router)  # Workstream 5: live drop-test phone telemetry
+app.include_router(pipeline.router)  # Workstream 5: video upload -> ML pipeline
 
-app.include_router(health.router, prefix="/api")
-app.include_router(videos.router, prefix="/api")
-app.include_router(events.router, prefix="/api")
-app.include_router(passports.router, prefix="/api")
-app.include_router(assistant.router, prefix="/api")
+# Serve frontend/public/ (accelerometer.html for the live drop-test demo) so
+# a phone can load it same-origin as the /api/accelerometer endpoint.
+_static_dir = Path(__file__).resolve().parents[2] / "frontend" / "public"
+if _static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")

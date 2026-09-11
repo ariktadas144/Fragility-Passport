@@ -17,7 +17,10 @@ def classify_event(track_kinematics: List[dict], product_class: str = "unknown")
 
     Output (KEEP THIS SHAPE STABLE):
         {
-          "behavior": str,              # e.g. "dragging", "dropping", "normal"
+          "behavior": str,              # a backend BEHAVIOR_CODES value (or
+                                        # "normal" -- filtered out before it
+                                        # reaches the backend). See
+                                        # backend/app/core/constants.py.
           "risk_level": str,            # "low" | "medium" | "high" | "critical"
           "explanation": str,
           "contract_clause_violated": str or None,
@@ -36,17 +39,17 @@ def classify_event(track_kinematics: List[dict], product_class: str = "unknown")
     # Placeholder rule-based logic -- NOT the real system.
     if max_drop > 150 and max_velocity > 400:
         return {
-            "behavior": "dropping",
+            "behavior": "product_dropped",
             "risk_level": "high",
             "explanation": f"Object dropped ~{int(max_drop)}px vertically at high velocity ({int(max_velocity)}px/s) -- mock classification, replace with real VLM call.",
-            "contract_clause_violated": "max_drop_height" if product_class != "unknown" else None,
+            "contract_clause_violated": None,  # backend recomputes this from the Fragility Passport
         }
     if max_velocity > 300 and duration > 1.0:
         return {
-            "behavior": "dragging",
+            "behavior": "product_dragged",
             "risk_level": "medium",
             "explanation": f"Sustained horizontal motion at {int(max_velocity)}px/s over {duration:.1f}s -- mock classification, replace with real VLM call.",
-            "contract_clause_violated": "no_drag_allowed" if product_class != "unknown" else None,
+            "contract_clause_violated": None,  # backend recomputes this from the Fragility Passport
         }
     return _normal_result()
 

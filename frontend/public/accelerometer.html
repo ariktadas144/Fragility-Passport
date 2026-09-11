@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fragility Passport — Live Drop Test</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #1F4E5F; color: white; text-align: center; padding: 20px; margin: 0; }
+  h1 { font-size: 1.3em; }
+  #force { font-size: 3em; font-weight: bold; margin: 20px 0; }
+  button { background: #EAF1F3; color: #1F4E5F; border: none; padding: 14px 28px; font-size: 1.1em; border-radius: 8px; margin: 10px; }
+  #status { opacity: 0.8; margin-top: 10px; }
+  #jobIdInput { padding: 8px; border-radius: 6px; border: none; width: 120px; text-align: center; }
+  .peak { color: #ffcc66; }
+</style>
+</head>
+<body>
+  <h1>Fragility Passport — Live Drop Test</h1>
+  <p>Job ID to log against: <input id="jobIdInput" placeholder="e.g. a1b2c3d4"></p>
+
+  <div id="force">0.00 g</div>
+  <div class="peak">Peak: <span id="peak">0.00</span> g</div>
+  <div id="status">Tap "Start" then drop the phone (safely, onto something soft first for testing).</div>
+
+  <button onclick="startCapture()">Start</button>
+  <button onclick="sendToServer()">Send Peak to Server</button>
+
+  <script>
+    let peak = 0;
+    let capturing = false;
+    // Same-origin by default. If the dashboard/API end up hosted separately,
+    // set this to the backend's full URL, e.g. "https://your-api.onrender.com"
+    const API_BASE = "";
+
+    function startCapture() {
+      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+        // iOS 13+ requires explicit permission, and requires HTTPS (won't work
+        // over plain http:// except on localhost) -- keep this in mind once
+        // this is deployed for the live demo.
+        DeviceMotionEvent.requestPermission().then(response => {
+          if (response === "granted") beginListening();
+          else document.getElementById("status").innerText = "Permission denied.";
+        });
+      } else {
+        beginListening();
+      }
+    }
+
+    function beginListening() {
+      capturing = true;
+      peak = 0;
+      document.getElementById("status").innerText = "Capturing... drop when ready.";
+      window.addEventListener("devicemotion", handleMotion);
+    }
+
+    function handleMotion(event) {
+      const acc = event.accelerationIncludingGravity;
+      if (!acc) return;
+      const magnitude = Math.sqrt(
+        (acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2
+      ) / 9.81; // convert to g-force
+
+      document.getElementById("force").innerText = magnitude.toFixed(2) + " g";
+      if (magnitude > peak) {
+        peak = magnitude;
+        document.getElementById("peak").innerText = peak.toFixed(2);
+      }
+    }
+
+    function sendToServer() {
+      const jobId = document.getElementById("jobIdInput").value.trim();
+      if (!jobId) {
+        alert("Enter the job ID first (from the /api/videos/upload response).");
+        return;
+      }
+      fetch(`${API_BASE}/api/accelerometer/${jobId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          peak_g_force: peak,
+          timestamp: new Date().toISOString(),
+        }),
+      })
+        .then(r => r.json())
+        .then(() => {
+          document.getElementById("status").innerText = `Sent peak ${peak.toFixed(2)}g to job ${jobId}.`;
+        })
+        .catch(err => {
+          document.getElementById("status").innerText = "Error sending: " + err;
+        });
+    }
+  </script>
+</body>
+</html>

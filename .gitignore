@@ -1,7 +1,33 @@
+# Node / frontend
+node_modules/
 /node_modules/
+
+# Python
 __pycache__/
 *.pyc
+venv/
+
+# Models / weights
 *.pt
+yolov8n.pt
+models/
+
+# Editors
+.vscode/
+
+# Secrets
+.env
+
+# Data (raw inputs, pipeline scratch, evidence)
 data/uploads/
 data/processed/
-.env
+data/raw/
+data/frames/
+data/dataset/images/
+data/overlay_review/
+data/overlay_screen_report.csv
+data/accelerometer/
+
+# Backend runtime artifacts
+backend/*.db
+backend/evidence/

@@ -45,6 +45,11 @@ def run_pipeline(video_path: str, output_dir: str) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        cap.release()
+        raise RuntimeError(
+            f"Could not open video (unsupported codec or corrupt file): {video_path}"
+        )
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -86,6 +91,9 @@ def run_pipeline(video_path: str, output_dir: str) -> dict:
         frame_idx += 1
 
     writer.release()
+
+    if frame_idx == 0:
+        raise RuntimeError(f"No frames could be read from the video: {video_path}")
 
     result = {
         "meta": {"fps": fps, "resolution": f"{w}x{h}", "total_frames": total_frames, "frames_processed": frame_idx},

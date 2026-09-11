@@ -1,5 +1,32 @@
-fastapi
-uvicorn[standard]
-python-multipart
+# Web framework + server
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn==0.52.4
+
+# Validation / settings
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.0.1
+
+# Database
+SQLAlchemy==2.0.52
+
+# Reports (Task 5: reports/templates/incident_report.html -> PDF)
+Jinja2==3.1.6
+reportlab==5.0.1
+
+# HTTP client -- used by the test suite AND by ml/pipeline/backend_client.py
+# to POST fused detections into this backend's /events endpoint.
+httpx==0.28.1
+
+# --- ML / detection pipeline (ml/) ---
+# The detection+tracking+VLM pipeline runs in the same environment and hands
+# its fused output to the backend over HTTP (see docs/ml-backend-contract.md).
 ultralytics
 opencv-python-headless
+google-genai
+lap
+
+# Tests
+pytest==9.1.1
+python-multipart

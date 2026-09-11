@@ -111,6 +111,26 @@ This project is built collaboratively across specialized domains:
 2. **VLM & AI Assistant:** High-level video sequence reasoning and natural language querying.
 3. **Frontend:** Real-time dashboards, charts, and video monitoring UI.
 4. **Backend & Data Pipeline:** The central integration layer (FastAPI), managing databases, risk logic, and APIs.
+5. **Integration:** Wires the ML/detection pipeline (`ml/`) into the Workstream 4 backend — see below.
+
+### How ML and the backend connect
+
+The `ml/` pipeline does **not** store or serve anything itself. It runs
+detection + tracking + kinematics + Gemini analysis + cross-validation
+fusion, then POSTs each fused event to the backend's `POST /events`
+(`docs/ml-backend-contract.md`), where the risk engine recalibrates it
+against the product's Fragility Passport, estimates ₹ exposure, and
+auto-creates alerts. One backend, one system of record.
+
+```bash
+cd backend && pip install -r requirements.txt && python ../scripts/seed_database.py
+uvicorn app.main:app --reload
+# then, from the repo root:
+python -m ml.pipeline.orchestrator CLIP.mp4 --dock 06 --product-sku ABC-123
+```
+
+See [backend/README.md](backend/README.md) for the full architecture diagram
+and configuration.
 
 ## Privacy & Compliance
 
